@@ -1,0 +1,56 @@
+cmake_minimum_required(VERSION 3.7)
+project(FlankMilling)
+
+# 设置不生成 MinSizeRel;RelWithDebInfo
+set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
+
+add_definitions(/D_USE_MATH_DEFINES)
+
+# **指定 Qt 安装路径** (修改为你安装 Qt 的正确路径)
+set(QT_PATH "D:/Qt/Qt5.12.0/5.12.0/msvc2017_64")
+
+# 确保 CMake 在 Qt 目录中查找 Qt5 组件
+set(Qt5_DIR "${QT_PATH}/lib/cmake/Qt5")
+set(Qt5Core_DIR "${QT_PATH}/lib/cmake/Qt5Core")
+set(Qt5Gui_DIR "${QT_PATH}/lib/cmake/Qt5Gui")
+set(Qt5OpenGL_DIR "${QT_PATH}/lib/cmake/Qt5OpenGL")
+set(Qt5Widgets_DIR "${QT_PATH}/lib/cmake/Qt5Widgets")
+
+find_package(Qt5Widgets REQUIRED HINTS "${QT_PATH}/lib/cmake")
+find_package(Qt5Core REQUIRED HINTS "${QT_PATH}/lib/cmake")
+find_package(Qt5Gui REQUIRED HINTS "${QT_PATH}/lib/cmake")
+find_package(Qt5OpenGL REQUIRED HINTS "${QT_PATH}/lib/cmake")
+
+# Eigen 和 OpenMesh 路径
+SET(EIGEN_PATH "D:/lib/eigen")
+SET(OPENMESH_PATH "D:/lib/OpenMesh/include")
+SET(OPENMESH_LIB_PATH "D:/lib/OpenMesh/lib")
+
+# Qt 自动 MOC/UIC/RCC
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+
+include_directories(${EIGEN_PATH})
+include_directories(${OPENMESH_PATH})
+link_directories(${OPENMESH_LIB_PATH})
+
+file (GLOB MY_FILE src/*)
+
+add_executable(${PROJECT_NAME} ${SRCFILES}
+	${MY_FILE}
+ )
+
+source_group(MY FILES ${MY_FILE})
+
+# 连接 Qt 和 OpenMesh 库
+target_link_libraries(${PROJECT_NAME} 
+    Qt5::Widgets Qt5::Core Qt5::Gui Qt5::OpenGL
+    optimized OpenMeshCore 
+    optimized OpenMeshTools
+    debug OpenMeshCored 
+    debug OpenMeshToolsd
+)
+
