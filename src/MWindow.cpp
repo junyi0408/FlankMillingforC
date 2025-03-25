@@ -6,7 +6,7 @@ MWindow::MWindow(QWidget* parent)
 	: QMainWindow(parent)
 {
 	viewer = new MainViewerWidget(this);
-	viewer->setFixedSize(1200, 1200);
+	viewer->setFixedSize(800, 800);
 	setCentralWidget(viewer);
 	initWindow();
 	createActions();

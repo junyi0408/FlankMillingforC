@@ -1,4 +1,5 @@
 #include "MainViewerWidget.h"
+const double TRACKBALL_RADIUS = 0.6;
 
 MainViewerWidget::MainViewerWidget(QWidget* _parent/* =0 */)
 {
@@ -96,7 +97,7 @@ void MainViewerWidget::resizeGL(int width, int height)
 }
 void MainViewerWidget::paintGL()
 {
-    qDebug() << "paintGL() called!";  // 确保被触发
+    //qDebug() << "paintGL() called!";  // 确保被触发
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
 
@@ -226,30 +227,164 @@ void MainViewerWidget::readDepthBuffer()
 }
 bool MainViewerWidget::isTriangleVisible(OpenMesh::FaceHandle fh)
 {
-    // **计算三角形质心的深度**
-    OpenMesh::Vec3f centroid(0, 0, 0);
+    std::vector<Mesh::Point> points;
+    Mesh::Point centroid(0, 0, 0);
     for (const auto& vh : mesh.fv_range(fh)) {
         centroid += mesh.point(vh);
+		points.push_back(mesh.point(vh));
     }
     centroid /= 3.0f; // 三角形质心
+	points.push_back(centroid);
 
-    // **将质心投影到屏幕坐标**
     glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
-    //GLdouble modelview[16] = { 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0 };
     GLint viewport[4] = { 0.0,0.0,this->width(),this->height() };
+    bool flag = false;
+	for (auto& point : points)
+	{
+        GLdouble winX, winY, winZ;
+        gluProject(point[0], point[1], point[2], modelview, projection, viewport, &winX, &winY, &winZ);
+        // **转换为 OpenGL 视口坐标**
+        int pixelX = static_cast<int>(winX);
+        int pixelY = static_cast<int>(winY);
+        if (pixelX < 0 || pixelX >= viewport[2] || pixelY < 0 || pixelY >= viewport[3])
+            continue; // 超出屏幕范围，跳过
 
-    GLdouble winX, winY, winZ;
-    gluProject(centroid[0], centroid[1], centroid[2], modelview, projection, viewport, &winX, &winY, &winZ);
+        // **获取该像素的深度**
+        float depthAtPixel = depthImage[pixelY * viewport[2] + pixelX];
 
-    // **转换为 OpenGL 视口坐标**
-    int pixelX = static_cast<int>(winX);
-    int pixelY = static_cast<int>(winY);
-    if (pixelX < 0 || pixelX >= viewport[2] || pixelY < 0 || pixelY >= viewport[3])
-        return false; // 超出屏幕范围，跳过
+        // **判断三角形是否无遮挡**
+        if (winZ <= depthAtPixel + 1e-5f)
+        {
+            flag = true;
+            break;
+        } 
+	}
+    return flag;
 
-    // **获取该像素的深度**
-    float depthAtPixel = depthImage[pixelY * viewport[2] + pixelX];
+}
 
-    // **判断三角形是否无遮挡**
-    return (winZ <= depthAtPixel + 1e-5f);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void MainViewerWidget::mousePressEvent(QMouseEvent* _event)
+{
+    //assert(mouse_mode_ < N_MOUSE_MODES);
+    last_point_2D_ = _event->pos();
+    last_point_ok_ = map_to_sphere(last_point_2D_, last_point_3D_);
+    mouse_mode_ = _event->button();
+}
+
+void MainViewerWidget::mouseMoveEvent(QMouseEvent* _event)
+{
+    //assert(mouse_mode_ < N_MOUSE_MODES);
+
+    QPoint newPoint2D = _event->pos();
+
+    // enable GL context
+    makeCurrent();
+
+    if (last_point_ok_)
+    {
+        switch (mouse_mode_)
+        {
+        case Qt::LeftButton:
+            rotation(newPoint2D);
+            break;
+        case Qt::RightButton:
+            //translation(newPoint2D);
+            break;
+        default:
+            break;
+        }
+    } // end of if
+
+    // remember this point
+    last_point_2D_ = newPoint2D;
+    last_point_ok_ = map_to_sphere(last_point_2D_, last_point_3D_);
+
+    // trigger redraw
+    updateGL();
+}
+
+void MainViewerWidget::mouseReleaseEvent(QMouseEvent* /* _event */)
+{
+    //assert(mouse_mode_ < N_MOUSE_MODES);
+    mouse_mode_ = Qt::NoButton;
+    last_point_ok_ = false;
+}
+
+
+void MainViewerWidget::rotation(QPoint p)
+{
+    OpenMesh::Vec3d  newPoint3D;
+    bool newPoint_hitSphere = map_to_sphere(p, newPoint3D);
+    double phi1 = std::acos(newPoint3D.normalize()[2]);
+	double phi2 = std::acos(last_point_3D_.normalize()[2]);
+	double theta1 = std::atan2(newPoint3D.normalize()[1], newPoint3D.normalize()[0]);
+	double theta2 = std::atan2(last_point_3D_.normalize()[1], last_point_3D_.normalize()[0]);
+	double delta_phi = phi1 - phi2;
+    if (delta_phi >= M_PI)
+    {
+		delta_phi = 2 * M_PI - delta_phi;
+    }
+    if (delta_phi <= -M_PI)
+    {
+        delta_phi += 2 * M_PI;
+    }
+	double delta_theta = theta1 - theta2;
+    if (delta_theta >= M_PI)
+    {
+        delta_theta = 2 * M_PI - delta_theta;
+    }
+    if (delta_theta <= -M_PI)
+    {
+        delta_theta += 2 * M_PI;
+    }
+    if (newPoint_hitSphere)
+    {
+        theta -= delta_theta * 180 / M_PI;
+        phi -= delta_phi * 180 / M_PI;
+    }
+}
+
+
+bool MainViewerWidget::map_to_sphere(const QPoint& _v2D, OpenMesh::Vec3d& _v3D)
+{
+    // This is actually doing the Sphere/Hyperbolic sheet hybrid thing,
+    // based on Ken Shoemake's ArcBall in Graphics Gems IV, 1993.
+    double x = (2.0 * _v2D.x() - width()) / width();
+    double y = -(2.0 * _v2D.y() - height()) / height();
+    double xval = x;
+    double yval = y;
+    double x2y2 = xval * xval + yval * yval;
+
+    const double rsqr = TRACKBALL_RADIUS * TRACKBALL_RADIUS;
+    _v3D[0] = xval;
+    _v3D[1] = yval;
+    if (x2y2 < 0.5 * rsqr)
+    {
+        _v3D[2] = sqrt(rsqr - x2y2);
+    }
+    else
+    {
+        _v3D[2] = 0.5 * rsqr / sqrt(x2y2);
+    }
+
+    return true;
 }

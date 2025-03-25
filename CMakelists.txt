@@ -7,7 +7,7 @@ set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 add_definitions(/D_USE_MATH_DEFINES)
 
 # **指定 Qt 安装路径** (修改为你安装 Qt 的正确路径)
-set(QT_PATH "D:/Qt/Qt5.12.0/5.12.0/msvc2017_64")
+set(QT_PATH "D:/lib/Qt/5.15.0/msvc2019_64")
 
 # 确保 CMake 在 Qt 目录中查找 Qt5 组件
 set(Qt5_DIR "${QT_PATH}/lib/cmake/Qt5")

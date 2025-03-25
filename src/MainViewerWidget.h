@@ -54,10 +54,22 @@ public slots:
 	}
 	void update_query()
 	{
+		selected_faces.clear();
 		readDepthBuffer();
+		float radTheta = theta * M_PI / 180.0f;
+		float radPhi = phi * M_PI / 180.0f;
+		float camX = radius * sin(radPhi) * sin(radTheta);
+		float camY = radius * cos(radPhi);
+		float camZ = radius * sin(radPhi) * cos(radTheta);
+		OpenMesh::Vec3f camera(camX, camY, camZ);
 		for (const auto& fh : mesh.faces())
 		{
-			if (isTriangleVisible(fh))
+			/*if (isTriangleVisible(fh))
+			{
+				selected_faces.push_back(fh.idx());
+			}*/
+			double a = abs(camera.normalize() | mesh.normal(fh));
+			if (a < 0.1)
 			{
 				selected_faces.push_back(fh.idx());
 			}
@@ -71,11 +83,17 @@ protected:
 	void resizeGL(int width, int height)override;
 	void paintGL()override;
 
+protected:
+	// Qt mouse events
+	virtual void mousePressEvent(QMouseEvent*);
+	virtual void mouseReleaseEvent(QMouseEvent*);
+	virtual void mouseMoveEvent(QMouseEvent*);
+
 private:
 	bool LoadMeshSuccess;
 	Mesh mesh;
 	double radius = 1;
-	double theta = 45, phi = 90;
+	double theta = 0, phi = 90;
 
 	std::vector<float> depthImage;
 	GLdouble projection[16];
@@ -88,5 +106,14 @@ private:
 	void save_mesh(const QString& fileName);
 	void readDepthBuffer();
 	bool isTriangleVisible(OpenMesh::FaceHandle fh);
+
+	void rotation(QPoint p);
+
+protected:
+	bool map_to_sphere(const QPoint& _point, OpenMesh::Vec3d& _result);
+	int mouse_mode_;
+	QPoint           last_point_2D_;
+	OpenMesh::Vec3d  last_point_3D_;
+	bool             last_point_ok_;
 };
 #endif // !MAINVIEWERWIDGET_H
